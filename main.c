@@ -52,9 +52,6 @@ int main(int argc, char *argv[]) {
 
     if (rank == 0){
 
-        // Start the timer
-        get_delta_time();
-
         // Parse command line arguments
         int opt;                                       /* selected option */
         char* fName;                                   /* file name */
@@ -130,6 +127,11 @@ int main(int argc, char *argv[]) {
     // Create the group of processes
     for (int i = 0; i < nProc; i++) {
         Group[i] = i;
+    }
+
+    if(rank == 0) {
+        // Start the timer
+        get_delta_time();
     }
 
     // Iterations
