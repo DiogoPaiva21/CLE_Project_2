@@ -8,6 +8,11 @@
 #include "reader/fileReader.h"
 #include "sort/bitonicSort.h"
 
+/**
+ * /brief Setting struct
+ *
+ * direction: sort direction (0 = ascending || 1 = descending)
+ */
 struct Setting {
     int direction;
     int size;
@@ -17,18 +22,28 @@ static void printUsage (char *cmdName);
 int checkIfProperlySorted(const int *array, int size, int direction);
 static double get_delta_time(void);
 
+/**
+ *  \brief Main function.
+ *
+ *  The main function of the program.
+ *
+ *  \param argc number of command line arguments
+ *  \param argv array of command line arguments
+ *
+ *  \return EXIT_SUCCESS if the program ends successfully, EXIT_FAILURE otherwise
+ */
 int main(int argc, char *argv[]) {
 
     int rank, nProc, nowProc;                               /* rank of the process, number of processes and present number of processes */
-    struct Setting settings;                               /* setting struct */
-    int *array = NULL;                               /* array to be sorted */
+    struct Setting settings;                                /* setting struct */
+    int *array = NULL;                                      /* array to be sorted */
 
     MPI_Init (&argc, &argv);                                    /* starts MPI */
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);               /* get current process id */
     MPI_Comm_size (MPI_COMM_WORLD, &nProc);         /* get number of processes */
 
-    MPI_Group nowGroup, nextGroup;                                 /* Group of processes */
-    MPI_Comm nowComm, nextComm;                                       /* Communication group */
+    MPI_Group presentGroup, nextGroup;                                    /* Group of processes */
+    MPI_Comm presentComm, nextComm;                                       /* Communication group */
 
     int Group[8];                                           /* Group of processes */
 
@@ -95,7 +110,7 @@ int main(int argc, char *argv[]) {
         printf ("sort direction = %d\n", direction);
 
         // Get Array from file
-        int size = readToArr(fName, &array);
+        int size = readToArr(fName, &array);            /* size of the array */
 
         // Create a setting struct
         settings.direction = direction;
@@ -109,17 +124,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Allocate memory for the recv buffer
-    int *recvBuffer = (int *) malloc(settings.size * sizeof(int));
+    int *recvBuffer = (int *) malloc(settings.size * sizeof(int));          /* receive buffer */
 
     // Calculate how many iterations to sort the array
-    int nIterations = (int) log2(nProc);
+    int nIterations = (int) log2(nProc);                                      /* number of iterations */
 
     // SubArray size
-    int subArraySize = 0;
+    int subArraySize = 0;                                                       /* size of the subArray */
 
     // Create Communication Groups
-    nowComm = MPI_COMM_WORLD;
-    MPI_Comm_group (nowComm, &nowGroup);
+    presentComm = MPI_COMM_WORLD;
+    MPI_Comm_group (presentComm, &presentGroup);                           /* get the group of processes */
 
     // Number of current processes
     nowProc = nProc;
@@ -141,14 +156,14 @@ int main(int argc, char *argv[]) {
         if (i != 0) {
 
             // Create the next communication group
-            MPI_Group_incl(nowGroup, nowProc, Group, &nextGroup);
+            MPI_Group_incl(presentGroup, nowProc, Group, &nextGroup);
 
             // Create the next communicator
-            MPI_Comm_create(nowComm, nextGroup, &nextComm);
+            MPI_Comm_create(presentComm, nextGroup, &nextComm);
 
             // Update
-            nowComm = nextComm;
-            nowGroup = nextGroup;
+            presentComm = nextComm;
+            presentGroup = nextGroup;
 
             // Finish if rank of the process is bigger than the now number of processes
             if (rank >= nowProc) {
@@ -159,13 +174,13 @@ int main(int argc, char *argv[]) {
         }
 
         // Update the number of current processes
-        MPI_Comm_size (nowComm, &nProc);
+        MPI_Comm_size (presentComm, &nProc);
 
         // Calculate the size of the subArray
         subArraySize = settings.size / nowProc;
 
         // Scatter the array
-        MPI_Scatter(array, subArraySize, MPI_INT, recvBuffer, subArraySize, MPI_INT, 0, nowComm);
+        MPI_Scatter(array, subArraySize, MPI_INT, recvBuffer, subArraySize, MPI_INT, 0, presentComm);
 
         // Sort the subArray
         if(i == 0) {
@@ -175,7 +190,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Gather the sorted subArray
-        MPI_Gather(recvBuffer, subArraySize, MPI_INT, array, subArraySize, MPI_INT, 0, nowComm);
+        MPI_Gather(recvBuffer, subArraySize, MPI_INT, array, subArraySize, MPI_INT, 0, presentComm);
 
         // Update the number of current processes
         nowProc = nProc / 2;
